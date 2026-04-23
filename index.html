@@ -1445,6 +1445,31 @@ document.getElementById('view-onboard').querySelector('.btn-primary').addEventLi
 
 // Keep relay alive (ping every 25s to prevent Render sleep)
 setInterval(() => { if(ws&&ws.readyState===WebSocket.OPEN) ws.send(JSON.stringify({type:'PING'})); }, 25000);
+// ── FIX: onboarding + start ──
+
+// Visa ditt ID direkt
+document.getElementById('ob-myid').textContent = ME.id;
+
+// Sätt ett alias automatiskt
+document.getElementById('ob-alias').value = ME.alias;
+
+// Start-knappens funktion
+function startApp() {
+  const aliasInput = document.getElementById('ob-alias');
+  let alias = aliasInput.value.trim();
+
+  if (!alias) {
+    alias = genAlias();
+  }
+
+  ME.alias = alias;
+  saveMe();
+
+  renderContactsList();
+  openView('view-contacts');
+
+  connectWS();
+}
 </script>
 </body>
 </html>
