@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="LibraOS">
 <meta name="theme-color" content="#0f0f10">
-<title>LibraOS</title>
+<title>LibraOS-4677</title>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 :root{
@@ -221,12 +221,12 @@ html,body{height:100%;height:100dvh;background:var(--bg);color:var(--text);font-
     </div>
 
     <div class="onboard-section">
-      <div class="onboard-label">Namn</div>
+      <div class="onboard-label">Ditt alias</div>
       <div class="alias-row">
         <input class="field-input" id="ob-alias" maxlength="24" placeholder="Genererat alias...">
         <button class="btn-regen" onclick="regenAlias()" title="Nytt alias">↺</button>
       </div>
-      <div class="alias-hint"></div>
+      <div class="alias-hint">Slumpmässigt. Du kan ändra det när som helst.</div>
     </div>
 
     <div class="onboard-section">
@@ -238,7 +238,7 @@ html,body{height:100%;height:100dvh;background:var(--bg);color:var(--text);font-
       <div class="id-hint">Dela detta ID med personer du vill chatta med. Det är ditt permanenta adress — inget telefonnummer behövs.</div>
     </div>
 
-    <button class="btn-primary" onclick="startApp()">Starta →</button>
+    <button class="btn-primary" onclick="startApp()">Kom igång →</button>
   </div>
 </div>
 
@@ -351,7 +351,7 @@ html,body{height:100%;height:100dvh;background:var(--bg);color:var(--text);font-
         <div class="settings-row-icon" id="settings-avatar" style="background:var(--accent-dim);color:var(--accent)">?</div>
         <div class="settings-row-text">
           <div class="settings-row-label" id="settings-alias-label">—</div>
-          <div class="settings-row-val">Namn · tryck för att ändra</div>
+          <div class="settings-row-val">Ditt alias · tryck för att ändra</div>
         </div>
         <div class="settings-arrow">›</div>
       </div>
@@ -505,33 +505,17 @@ html,body{height:100%;height:100dvh;background:var(--bg);color:var(--text);font-
 
 <script>
 // ═══════════════════════════════════════════════════════════
-//  LibraOS  —  Full E2E encrypted messenger
-//  WebSocket relay: https://libraos-2.onrender.com
+//  LibraOS-4677  —  Full E2E encrypted messenger
+//  WebSocket relay: https://libraos-1.onrender.com
 // ═══════════════════════════════════════════════════════════
 
 const RELAY = 'wss://libraos-1.onrender.com';
 const AV_CLASSES = ['av-blue','av-green','av-orange','av-purple','av-pink','av-teal'];
-const ALIAS_CHARS = 'abcdefghjkmnpqrstuvwxyz0123456789@#!$&';
 
-// ── Persistent state ─────────────────────────────────────
-let ME = loadOrCreate();
-function loadOrCreate() {
-  try {
-    const s = localStorage.getItem('libra_me');
-    if (s) return JSON.parse(s);
-  } catch {}
-  return {
-    id: genId(32),
-    alias: genAlias(),
-    contacts: {},   // id → { alias, id, messages:[], unread:0 }
-    groups: {},     // id → { name, members:[], messages:[] }
-    msgTimer: 0,
-  };
-}
-function saveMe() { try { localStorage.setItem('libra_me', JSON.stringify(ME)); } catch {} }
-
-// ── Crypto helpers ───────────────────────────────────────
+// ── Crypto helpers (must come before ME init) ────────────
 const CRYPTO_CHARS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+const ALIAS_CHARS  = 'abcdefghjkmnpqrstuvwxyz0123456789@#!$&';
+
 function genId(len) {
   const arr = crypto.getRandomValues(new Uint8Array(len));
   return Array.from(arr).map(b => CRYPTO_CHARS[b % CRYPTO_CHARS.length]).join('');
@@ -540,6 +524,23 @@ function genAlias() {
   const arr = crypto.getRandomValues(new Uint8Array(8));
   return Array.from(arr).map(b => ALIAS_CHARS[b % ALIAS_CHARS.length]).join('');
 }
+
+// ── Persistent state ─────────────────────────────────────
+function loadOrCreate() {
+  try {
+    const s = localStorage.getItem('libra_me');
+    if (s) return JSON.parse(s);
+  } catch {}
+  return {
+    id: genId(32),
+    alias: genAlias(),
+    contacts: {},
+    groups: {},
+    msgTimer: 0,
+  };
+}
+let ME = loadOrCreate();
+function saveMe() { try { localStorage.setItem('libra_me', JSON.stringify(ME)); } catch {} }
 
 async function deriveKey(secret, salt) {
   const enc = new TextEncoder();
@@ -1423,53 +1424,23 @@ function showToast(msg){
 
 // ── Boot ─────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
-  const myId = ME.id;
   document.getElementById('ob-alias').value = ME.alias;
-  document.getElementById('ob-myid').textContent = myId;
+  document.getElementById('ob-myid').textContent = ME.id;
 
-  // If already onboarded, skip straight to contacts
-  if (ME.alias && Object.keys(ME.contacts).length >= 0 && localStorage.getItem('libra_started')) {
+  document.querySelector('#view-onboard .btn-primary').addEventListener('click', () => {
+    localStorage.setItem('libra_started', '1');
+    startApp();
+  });
+
+  if (localStorage.getItem('libra_started')) {
     updateSettingsUI();
     connectWS();
     openView('view-contacts');
     renderContactsList();
   }
-
-  document.getElementById('btn-start') && document.getElementById('btn-start').addEventListener('click', startApp);
 });
 
-document.getElementById('view-onboard').querySelector('.btn-primary').addEventListener('click', () => {
-  localStorage.setItem('libra_started','1');
-  startApp();
-});
-
-// Keep relay alive (ping every 25s to prevent Render sleep)
-setInterval(() => { if(ws&&ws.readyState===WebSocket.OPEN) ws.send(JSON.stringify({type:'PING'})); }, 25000);
-// ── FIX: onboarding + start ──
-
-// Visa ditt ID direkt
-document.getElementById('ob-myid').textContent = ME.id;
-
-// Sätt ett alias automatiskt
-document.getElementById('ob-alias').value = ME.alias;
-
-// Start-knappens funktion
-function startApp() {
-  const aliasInput = document.getElementById('ob-alias');
-  let alias = aliasInput.value.trim();
-
-  if (!alias) {
-    alias = genAlias();
-  }
-
-  ME.alias = alias;
-  saveMe();
-
-  renderContactsList();
-  openView('view-contacts');
-
-  connectWS();
-}
+setInterval(() => { if(ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({type:'PING'})); }, 25000);
 </script>
 </body>
 </html>
